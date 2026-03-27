@@ -277,11 +277,11 @@ class OEI_Admin_Page {
             <div class="oei-card">
                 <h2>Jak to dziala</h2>
                 <p>Dla kazdego produktu zmiennego: pobiera EAN z wariantow, ustawia go na produkcie glownym (meta <code>_ean</code>),
-                   a z wariantow usuwa <code>_ean</code>. <strong>SKU wariantow zostaje nietkniety.</strong></p>
+                   a <strong>wszystkim wariantom ustawia SKU = EAN</strong> (ten sam dla wszystkich wariantow danego produktu).
+                   Meta <code>_ean</code> z wariantow zostaje usuniety.</p>
                 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                     <?php wp_nonce_field( 'oei_action', 'oei_nonce' ); ?>
                     <input type="hidden" name="action" value="oei_move_preview">
-                    <p><label><input type="checkbox" name="set_parent_sku" value="1"> Ustaw tez SKU produktu glownego na EAN (jesli pusty)</label></p>
                     <p><button type="submit" class="button button-secondary">Podglad (dry run)</button></p>
                 </form>
             </div>
@@ -304,14 +304,13 @@ class OEI_Admin_Page {
                 <div class="oei-stat oei-s-total">Produktow: <?php echo intval( $s['products_total'] ); ?></div>
                 <div class="oei-stat oei-s-ok">Do przeniesienia: <?php echo intval( $s['products_updated'] ); ?></div>
                 <div class="oei-stat oei-s-skip">Pominiete: <?php echo intval( $s['products_skipped'] ); ?></div>
-                <div class="oei-stat oei-s-total">Wariantow do czyszczenia: <?php echo intval( $s['variations_cleaned'] ); ?></div>
+                <div class="oei-stat oei-s-total">Wariantow do aktualizacji: <?php echo intval( $s['variations_updated'] ); ?></div>
             </div>
             <?php $this->move_table( $data['log'] ); ?>
             <?php if ( $is_preview && $s['products_updated'] > 0 ) : ?>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'oei_action', 'oei_nonce' ); ?>
                 <input type="hidden" name="action" value="oei_move_run">
-                <input type="hidden" name="set_parent_sku" value="<?php echo intval( $data['set_parent_sku'] ); ?>">
                 <p style="margin-top:16px">
                     <button type="submit" class="button button-primary button-hero"
                         onclick="return confirm('Przeniesc EAN dla <?php echo intval( $s['products_updated'] ); ?> produktow?');">
@@ -347,17 +346,14 @@ class OEI_Admin_Page {
 
     public function handle_move_preview() {
         $this->verify();
-        $set_parent_sku = ! empty( $_POST['set_parent_sku'] );
-        $data = OEI_EAN_Mover::run( true, $set_parent_sku );
-        $data['set_parent_sku'] = $set_parent_sku ? 1 : 0;
+        $data = OEI_EAN_Mover::run( true );
         set_transient( 'oei_move_preview', $data, 300 );
         wp_safe_redirect( admin_url( 'admin.php?page=oei-move-ean' ) ); exit;
     }
 
     public function handle_move_run() {
         $this->verify();
-        $set_parent_sku = ! empty( $_POST['set_parent_sku'] );
-        $data = OEI_EAN_Mover::run( false, $set_parent_sku );
+        $data = OEI_EAN_Mover::run( false );
         set_transient( 'oei_move_results', $data, 300 );
         wp_safe_redirect( admin_url( 'admin.php?page=oei-move-ean' ) ); exit;
     }
