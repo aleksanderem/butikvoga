@@ -5,11 +5,8 @@ class OEI_EAN_Mover {
 
     /**
      * Move EAN from variations to parent product.
-     * Set SKU of ALL variants to the parent's EAN value.
+     * Set SKU of ALL variants to the parent product's ID.
      * Clear _ean from variations.
-     *
-     * Uses update_post_meta for SKU to bypass WooCommerce unique SKU validation
-     * (all variants of one product get the same SKU = EAN).
      */
     public static function run( $dry_run = true ) {
         $log   = array();
@@ -21,6 +18,8 @@ class OEI_EAN_Mover {
         foreach ( $products as $product ) {
             $children = $product->get_children();
             if ( empty( $children ) ) { $stats['products_skipped']++; continue; }
+
+            $parent_id = $product->get_id();
 
             // Try to find EAN: first from parent, then from variations
             $found_ean = $product->get_meta( '_ean' );
@@ -47,13 +46,15 @@ class OEI_EAN_Mover {
             if ( empty( $found_ean ) ) { $stats['products_skipped']++; continue; }
 
             $parent_had_ean = $product->get_meta( '_ean' );
+            $new_sku = strval( $parent_id );
 
             $entry = array(
-                'product_id'     => $product->get_id(),
+                'product_id'     => $parent_id,
                 'product_name'   => $product->get_name(),
                 'ean'            => $found_ean,
                 'parent_had_ean' => ! empty( $parent_had_ean ) ? $parent_had_ean : '-',
                 'variants_count' => count( $children ),
+                'new_sku'        => $new_sku,
                 'status'         => 'ok',
                 'message'        => '',
                 'details'        => array(),
@@ -64,8 +65,7 @@ class OEI_EAN_Mover {
                 $product->update_meta_data( '_ean', $found_ean );
                 $product->save();
 
-                // Set SKU = EAN on ALL variants, remove _ean meta
-                // Use update_post_meta directly to bypass WooCommerce unique SKU check
+                // Set SKU = parent ID on ALL variants, remove _ean meta
                 foreach ( $children as $vid ) {
                     $v = wc_get_product( $vid );
                     if ( ! $v ) continue;
@@ -75,25 +75,25 @@ class OEI_EAN_Mover {
                     // Delete _ean meta
                     delete_post_meta( $vid, '_ean' );
 
-                    // Set SKU directly in DB - bypasses WC unique SKU validation
-                    update_post_meta( $vid, '_sku', $found_ean );
+                    // Set SKU = parent product ID (bypass WC unique check)
+                    update_post_meta( $vid, '_sku', $new_sku );
 
-                    // Clear WC product cache for this variation
+                    // Clear WC product cache
                     wc_delete_product_transients( $vid );
 
                     $stats['variations_updated']++;
-                    $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $found_ean;
+                    $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $new_sku;
                 }
-                $entry['message'] = 'EAN na parent, SKU wariantow = ' . $found_ean . ' (' . count( $children ) . ' wariantow)';
+                $entry['message'] = 'EAN na parent, SKU wariantow = ' . $new_sku . ' (' . count( $children ) . ' wariantow)';
             } else {
                 foreach ( $children as $vid ) {
                     $v = wc_get_product( $vid );
                     if ( ! $v ) continue;
                     $old_sku = $v->get_sku();
                     $stats['variations_updated']++;
-                    $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $found_ean;
+                    $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $new_sku;
                 }
-                $entry['message'] = 'Do przeniesienia (' . count( $children ) . ' wariantow, SKU = ' . $found_ean . ')';
+                $entry['message'] = 'Do przeniesienia (' . count( $children ) . ' wariantow, SKU = ' . $new_sku . ')';
             }
 
             $stats['products_updated']++;
