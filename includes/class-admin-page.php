@@ -277,8 +277,8 @@ class OEI_Admin_Page {
             <div class="oei-card">
                 <h2>Jak to dziala</h2>
                 <p>Dla kazdego produktu zmiennego: pobiera EAN z wariantow, ustawia go na produkcie glownym (meta <code>_ean</code>),
-                   a <strong>wszystkim wariantom ustawia SKU = ID produktu glownego</strong>.
-                   Meta <code>_ean</code> z wariantow zostaje usuniety.</p>
+                   a <strong>wszystkim wariantom ustawia <code>parent_id</code> = EAN produktu glownego</strong>.
+                   Meta <code>_ean</code> z wariantow zostaje usuniety. SKU wariantow pozostaje bez zmian.</p>
                 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                     <?php wp_nonce_field( 'oei_action', 'oei_nonce' ); ?>
                     <input type="hidden" name="action" value="oei_move_preview">
