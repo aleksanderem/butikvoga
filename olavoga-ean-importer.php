@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Olavoga EAN Importer
  * Description: Import EAN from CSV, generate SKU, move EAN to parent products.
- * Version: 3.3.0
+ * Version: 3.4.0
  * Author: Kolabo IT
  * Text Domain: olavoga-ean-importer
  * Requires at least: 5.8
@@ -12,7 +12,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 define( 'OEI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'OEI_VERSION', '3.3.0' );
+define( 'OEI_VERSION', '3.4.0' );
 
 require_once OEI_PLUGIN_DIR . 'includes/class-csv-parser.php';
 require_once OEI_PLUGIN_DIR . 'includes/class-product-matcher.php';

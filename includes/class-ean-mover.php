@@ -5,8 +5,7 @@ class OEI_EAN_Mover {
 
     /**
      * Move EAN from variations to parent product.
-     * Parent gets _ean. Variations get parent_id = parent's EAN.
-     * Variations keep their SKU, _ean is removed.
+     * Parent gets _ean. Variations _ean removed. SKU untouched.
      */
     public static function run( $dry_run = true ) {
         $log   = array();
@@ -19,25 +18,23 @@ class OEI_EAN_Mover {
             $children = $product->get_children();
             if ( empty( $children ) ) { $stats['products_skipped']++; continue; }
 
-            // Try to find EAN: first from parent, then from variations
             $found_ean = $product->get_meta( '_ean' );
+            $vars_with_ean = array();
 
-            if ( empty( $found_ean ) ) {
-                foreach ( $children as $vid ) {
-                    $variation = wc_get_product( $vid );
-                    if ( ! $variation ) continue;
+            foreach ( $children as $vid ) {
+                $variation = wc_get_product( $vid );
+                if ( ! $variation ) continue;
 
-                    $ean = $variation->get_meta( '_ean' );
-                    $sku = $variation->get_sku();
+                $ean = $variation->get_meta( '_ean' );
+                $sku = $variation->get_sku();
 
-                    if ( empty( $ean ) && ! empty( $sku ) && preg_match( '/^\d{8,13}$/', $sku ) ) {
-                        $ean = $sku;
-                    }
+                if ( empty( $ean ) && ! empty( $sku ) && preg_match( '/^\d{8,13}$/', $sku ) ) {
+                    $ean = $sku;
+                }
 
-                    if ( ! empty( $ean ) ) {
-                        $found_ean = $ean;
-                        break;
-                    }
+                if ( ! empty( $ean ) ) {
+                    if ( empty( $found_ean ) ) $found_ean = $ean;
+                    $vars_with_ean[] = array( 'id' => $vid, 'ean' => $ean );
                 }
             }
 
@@ -50,36 +47,31 @@ class OEI_EAN_Mover {
                 'product_name'   => $product->get_name(),
                 'ean'            => $found_ean,
                 'parent_had_ean' => ! empty( $parent_had_ean ) ? $parent_had_ean : '-',
-                'variants_count' => count( $children ),
+                'variants_count' => count( $vars_with_ean ),
                 'status'         => 'ok',
                 'message'        => '',
                 'details'        => array(),
             );
 
             if ( ! $dry_run ) {
-                // Set EAN on parent product
                 $product->update_meta_data( '_ean', $found_ean );
                 $product->save();
 
-                // For ALL variants: set parent_id = EAN, remove _ean, keep SKU
-                foreach ( $children as $vid ) {
-                    $v = wc_get_product( $vid );
+                foreach ( $vars_with_ean as $vdata ) {
+                    $v = wc_get_product( $vdata['id'] );
                     if ( ! $v ) continue;
-
                     $v->delete_meta_data( '_ean' );
-                    $v->update_meta_data( 'parent_id', $found_ean );
                     $v->save();
-
                     $stats['variations_updated']++;
-                    $entry['details'][] = '#' . $vid . ': parent_id=' . $found_ean . ', _ean usuniety';
+                    $entry['details'][] = '#' . $vdata['id'] . ': _ean usuniety';
                 }
-                $entry['message'] = 'EAN na parent, parent_id ustawione na ' . count( $children ) . ' wariantach';
+                $entry['message'] = 'EAN przeniesiony, wyczyszczono ' . count( $vars_with_ean ) . ' wariantow';
             } else {
-                foreach ( $children as $vid ) {
+                foreach ( $vars_with_ean as $vdata ) {
                     $stats['variations_updated']++;
-                    $entry['details'][] = '#' . $vid . ': parent_id=' . $found_ean . ', _ean do usuniecia';
+                    $entry['details'][] = '#' . $vdata['id'] . ': _ean do usuniecia';
                 }
-                $entry['message'] = 'Do przeniesienia (' . count( $children ) . ' wariantow, parent_id = ' . $found_ean . ')';
+                $entry['message'] = 'Do przeniesienia (' . count( $vars_with_ean ) . ' wariantow)';
             }
 
             $stats['products_updated']++;
