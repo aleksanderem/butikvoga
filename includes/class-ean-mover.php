@@ -7,6 +7,9 @@ class OEI_EAN_Mover {
      * Move EAN from variations to parent product.
      * Set SKU of ALL variants to the parent's EAN value.
      * Clear _ean from variations.
+     *
+     * Uses update_post_meta for SKU to bypass WooCommerce unique SKU validation
+     * (all variants of one product get the same SKU = EAN).
      */
     public static function run( $dry_run = true ) {
         $log   = array();
@@ -62,14 +65,21 @@ class OEI_EAN_Mover {
                 $product->save();
 
                 // Set SKU = EAN on ALL variants, remove _ean meta
+                // Use update_post_meta directly to bypass WooCommerce unique SKU check
                 foreach ( $children as $vid ) {
                     $v = wc_get_product( $vid );
                     if ( ! $v ) continue;
 
                     $old_sku = $v->get_sku();
-                    $v->delete_meta_data( '_ean' );
-                    $v->set_sku( $found_ean );
-                    $v->save();
+
+                    // Delete _ean meta
+                    delete_post_meta( $vid, '_ean' );
+
+                    // Set SKU directly in DB - bypasses WC unique SKU validation
+                    update_post_meta( $vid, '_sku', $found_ean );
+
+                    // Clear WC product cache for this variation
+                    wc_delete_product_transients( $vid );
 
                     $stats['variations_updated']++;
                     $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $found_ean;
@@ -79,7 +89,7 @@ class OEI_EAN_Mover {
                 foreach ( $children as $vid ) {
                     $v = wc_get_product( $vid );
                     if ( ! $v ) continue;
-                    $old_sku = $v ? $v->get_sku() : '';
+                    $old_sku = $v->get_sku();
                     $stats['variations_updated']++;
                     $entry['details'][] = '#' . $vid . ': SKU ' . ( ! empty( $old_sku ) ? $old_sku : '(pusty)' ) . ' -> ' . $found_ean;
                 }
